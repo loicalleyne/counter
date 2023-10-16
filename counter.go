@@ -22,30 +22,6 @@ type Counter struct {
 	separator  string
 }
 
-func (c *Counter) Map() *csmap.CsMap[string, int64] { return c.dm }
-func (c *Counter) Reset()                           { c.dm.Clear() }
-
-func (c *Counter) ArrowRec() *arrow.Record {
-	c.dm.Range(func(key string, value int64) (stop bool) {
-		keyParts := strings.Split(key, c.separator)
-		for idx, fb := range c.bld.Fields() {
-			if idx == len(c.fieldTypes) {
-				fb.(*array.Int64Builder).Append(value)
-			} else {
-				switch c.fieldTypes[idx] {
-				case arrow.BinaryTypes.String:
-					fb.(*array.StringBuilder).AppendString(keyParts[idx])
-				case arrow.PrimitiveTypes.Int64:
-					fb.(*array.Int64Builder).Append(cast.ToInt64(keyParts[idx]))
-				}
-			}
-		}
-		return false
-	})
-	r := c.bld.NewRecord()
-	return &r
-}
-
 func NewCounter(fields []string, metric string, ft []arrow.DataType, options ...func(options *Counter)) (*Counter, error) {
 	if len(fields) < 1 {
 		return nil, fmt.Errorf("no field names provided")
@@ -85,6 +61,82 @@ func NewCounter(fields []string, metric string, ft []arrow.DataType, options ...
 	c.bld = array.NewRecordBuilder(memory.DefaultAllocator, c.Schema)
 	c.dm = dm
 	return &c, nil
+}
+
+func (c *Counter) Map() *csmap.CsMap[string, int64] { return c.dm }
+func (c *Counter) Reset()                           { c.dm.Clear() }
+
+func (c *Counter) ArrowRec() *arrow.Record {
+	c.dm.Range(func(key string, value int64) (stop bool) {
+		keyParts := strings.Split(key, c.separator)
+		for idx, fb := range c.bld.Fields() {
+			if idx == len(c.fieldTypes) {
+				fb.(*array.Int64Builder).Append(value)
+			} else {
+				switch c.fieldTypes[idx] {
+				case arrow.BinaryTypes.String:
+					fb.(*array.StringBuilder).AppendString(keyParts[idx])
+				case arrow.PrimitiveTypes.Int64:
+					fb.(*array.Int64Builder).Append(cast.ToInt64(keyParts[idx]))
+				}
+			}
+		}
+		return false
+	})
+	r := c.bld.NewRecord()
+	return &r
+}
+
+func (c *Counter) Get(keys ...any) (int64, error) {
+	if len(keys) != len(c.fields) {
+		return 0, fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
+	}
+	var ks string
+	m := c.dm
+	for idx, key := range keys {
+		switch k := key.(type) {
+		case string:
+			if idx == 0 {
+				ks = ks + k
+			} else {
+				ks = ks + c.separator + k
+			}
+		case int64, int32, int16, int8, int:
+			if idx == 0 {
+				ks = ks + cast.ToString(k)
+			} else {
+				ks = ks + c.separator + cast.ToString(k)
+			}
+		}
+	}
+	s, _ := m.Load(ks)
+	return s, nil
+}
+
+func (c *Counter) Delete(keys ...any) (bool, error) {
+	if len(keys) != len(c.fields) {
+		return false, fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
+	}
+	var ks string
+	m := c.dm
+	for idx, key := range keys {
+		switch k := key.(type) {
+		case string:
+			if idx == 0 {
+				ks = ks + k
+			} else {
+				ks = ks + c.separator + k
+			}
+		case int64, int32, int16, int8, int:
+			if idx == 0 {
+				ks = ks + cast.ToString(k)
+			} else {
+				ks = ks + c.separator + cast.ToString(k)
+			}
+		}
+	}
+	d := m.Delete(ks)
+	return d, nil
 }
 
 func (c *Counter) Increment(inc int64, keys ...any) error {
