@@ -1,4 +1,4 @@
-# counter : count metrics and export them to an arrow record
+# counter : increment/decrement metric counters and export them to an arrow record
 
 ## Overview
 
