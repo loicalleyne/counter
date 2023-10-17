@@ -22,7 +22,9 @@ type Counter struct {
 	separator  string
 }
 
-func NewCounter(fields []string, metric string, ft []arrow.DataType, options ...func(options *Counter)) (*Counter, error) {
+// NewCounter receives the metric dimension field names, the metric field name, an array of string indicating the type of the metric dimension fields,
+// an array of option functions and returns a pointer to a new counter. The metric dimension field types are either "s" for string or "i" for int64.
+func NewCounter(fields []string, metric string, ft []string, options ...func(options *Counter)) (*Counter, error) {
 	if len(fields) < 1 {
 		return nil, fmt.Errorf("no field names provided")
 	}
@@ -36,10 +38,12 @@ func NewCounter(fields []string, metric string, ft []arrow.DataType, options ...
 
 	for idx, t := range ft {
 		switch t {
-		case arrow.BinaryTypes.String, arrow.PrimitiveTypes.Int64:
-			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: t})
+		case "s", "S":
+			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: arrow.BinaryTypes.String})
+		case "i", "I":
+			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: arrow.PrimitiveTypes.Int64})
 		default:
-			return nil, fmt.Errorf("invalid field type at position %d - %s", idx, t.String())
+			return nil, fmt.Errorf("invalid field type at position %d - %s", idx, t)
 		}
 	}
 	aFields = append(aFields, arrow.Field{Name: metric, Type: arrow.PrimitiveTypes.Int64})
