@@ -50,10 +50,13 @@ func NewCounter(fields []string, ft []string, metricName string, options ...func
 	for idx, t := range ft {
 		switch t {
 		case "i", "I", "int64":
+			ft[idx] = "i"
 			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: arrow.PrimitiveTypes.Int64})
 		case "t", "T", "time":
+			ft[idx] = "t"
 			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: &arrow.TimestampType{Unit: arrow.Second}})
 		case "s", "S", "string":
+			ft[idx] = "s"
 			aFields = append(aFields, arrow.Field{Name: fields[idx], Type: arrow.BinaryTypes.String})
 		default:
 			return nil, fmt.Errorf("invalid field type at position %d - %s", idx, t)
@@ -130,8 +133,11 @@ func (c *Counter) Get(keys ...any) (int64, error) {
 	if len(keys) != len(c.fields) {
 		return 0, fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
 	}
+	ks, err := c.genKey(keys)
+	if err != nil {
+		return 0, err
+	}
 	m := c.dm
-	ks := c.genKey(keys)
 	s, _ := m.Load(ks)
 	return s, nil
 }
@@ -140,8 +146,11 @@ func (c *Counter) Delete(keys ...any) (bool, error) {
 	if len(keys) != len(c.fields) {
 		return false, fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
 	}
+	ks, err := c.genKey(keys)
+	if err != nil {
+		return false, err
+	}
 	m := c.dm
-	ks := c.genKey(keys)
 	d := m.Delete(ks)
 	return d, nil
 }
@@ -150,8 +159,11 @@ func (c *Counter) Increment(inc int64, keys ...any) error {
 	if len(keys) != len(c.fields) {
 		return fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
 	}
+	ks, err := c.genKey(keys)
+	if err != nil {
+		return err
+	}
 	m := c.dm
-	ks := c.genKey(keys)
 	s, _ := m.Load(ks)
 	if s == 0 {
 		m.Store(ks, inc)
@@ -166,8 +178,11 @@ func (c *Counter) Decrement(dec int64, keys ...any) error {
 	if len(keys) != len(c.fields) {
 		return fmt.Errorf("%d keys provided, want %d", len(keys), len(c.fields))
 	}
+	ks, err := c.genKey(keys)
+	if err != nil {
+		return err
+	}
 	m := c.dm
-	ks := c.genKey(keys)
 	s, _ := m.Load(ks)
 	if s == 0 {
 		m.Store(ks, 0-dec)
@@ -232,23 +247,32 @@ func WithCustomSeparator(f string) func(counter *Counter) error {
 	}
 }
 
-func (c *Counter) genKey(keys []any) string {
+func (c *Counter) genKey(keys []any) (string, error) {
 	var ks string
 	for idx, key := range keys {
 		switch k := key.(type) {
 		case time.Time:
+			if c.fieldTypes[idx] != "t" {
+				return "", fmt.Errorf("field type mismatch on %s", c.fields[idx])
+			}
 			if idx == 0 {
 				ks = ks + k.Format(c.timeFormat)
 			} else {
 				ks = ks + c.separator + k.Format(c.timeFormat)
 			}
 		case string:
+			if c.fieldTypes[idx] != "s" {
+				return "", fmt.Errorf("field type mismatch on %s", c.fields[idx])
+			}
 			if idx == 0 {
 				ks = ks + k
 			} else {
 				ks = ks + c.separator + k
 			}
 		case int64, int32, int16, int8, int:
+			if c.fieldTypes[idx] != "i" {
+				return "", fmt.Errorf("field type mismatch on %s", c.fields[idx])
+			}
 			if idx == 0 {
 				ks = ks + cast.ToString(k)
 			} else {
@@ -256,5 +280,5 @@ func (c *Counter) genKey(keys []any) string {
 			}
 		}
 	}
-	return ks
+	return ks, nil
 }
