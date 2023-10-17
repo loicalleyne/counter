@@ -34,8 +34,8 @@ type Counter struct {
 //	"s","S","string" : string
 //
 // Example:
-// c, err := NewCounter([]string{"event_time", "entity1_name", "entity2_id"}, []string{"T", "S","I"}, "requests", WithTimeFormat(“02 Jan 06 15:04 -0700”))
-func NewCounter(fields []string, ft []string, metricName string, options ...func(options *Counter) error) (*Counter, error) {
+// c, err := New([]string{"event_time", "entity1_name", "entity2_id"}, []string{"T", "S","I"}, "requests", WithTimeFormat(“02 Jan 06 15:04 -0700”))
+func New(fields []string, ft []string, metricName string, options ...func(options *Counter) error) (*Counter, error) {
 	if len(fields) < 1 {
 		return nil, fmt.Errorf("no field names provided")
 	}
